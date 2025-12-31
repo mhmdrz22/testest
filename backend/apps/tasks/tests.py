@@ -116,7 +116,7 @@ class TaskAPITests(APITestCase):
             title='Task with Comment',
             created_by=self.user
         )
-        data = {'text': 'This is a comment'}
+        data = {'content': 'This is a comment'}
         response = self.client.post(f'/api/tasks/{task.id}/add_comment/', data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(TaskComment.objects.count(), 1)
