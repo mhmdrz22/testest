@@ -1,11 +1,12 @@
 from django.test import TestCase
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
 from .models import Task, TaskComment
 from datetime import datetime, timedelta
 from django.utils import timezone
 
+User = get_user_model()
 
 class TaskModelTests(TestCase):
     def setUp(self):
