@@ -344,3 +344,6 @@ celery -A config worker -l info
 </div>
 
 </div>
+
+
+<!-- Trigger workflow -->
