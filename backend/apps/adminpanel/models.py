@@ -1,80 +1,40 @@
 from django.db import models
 from django.conf import settings
-from django.utils import timezone
 
 
-class Task(models.Model):
-    STATUS_CHOICES = [
-        ('open', 'باز'),
-        ('in_progress', 'در حال انجام'),
-        ('closed', 'بسته شده'),
-        ('pending', 'در انتظار'),
+class AdminLog(models.Model):
+    ACTION_CHOICES = [
+        ('create', 'ایجاد'),
+        ('update', 'به‌روزرسانی'),
+        ('delete', 'حذف'),
+        ('send_notification', 'ارسال اطلاع‌رسانی'),
     ]
     
-    PRIORITY_CHOICES = [
-        ('low', 'پایین'),
-        ('medium', 'متوسط'),
-        ('high', 'بالا'),
-        ('critical', 'بحرانی'),
-    ]
-    
-    title = models.CharField(max_length=255)
-    description = models.TextField(blank=True, null=True)
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='created_tasks')
-    assigned_to = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_tasks')
-    
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')
-    priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default='medium')
-    
-    due_date = models.DateTimeField(null=True, blank=True)
+    admin = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='admin_logs')
+    action = models.CharField(max_length=50, choices=ACTION_CHOICES)
+    description = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    completed_at = models.DateTimeField(null=True, blank=True)
-    
-    is_active = models.BooleanField(default=True)
     
     class Meta:
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['status', 'created_by']),
-            models.Index(fields=['assigned_to']),
-            models.Index(fields=['-created_at']),
+            models.Index(fields=['admin', '-created_at']),
         ]
     
     def __str__(self):
-        return self.title
-    
-    def mark_completed(self):
-        self.status = 'closed'
-        self.completed_at = timezone.now()
-        self.save()
+        return f"{self.admin.username} - {self.action}"
 
 
-class TaskComment(models.Model):
-    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='comments')
-    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    content = models.TextField()
+class NotificationTemplate(models.Model):
+    title = models.CharField(max_length=255)
+    subject = models.CharField(max_length=255)
+    body = models.TextField()
+    is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        ordering = ['created_at']
-        indexes = [
-            models.Index(fields=['task', 'created_at']),
-        ]
+        ordering = ['-created_at']
     
     def __str__(self):
-        return f"Comment by {self.author} on {self.task}"
-
-
-class TaskAttachment(models.Model):
-    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='attachments')
-    file = models.FileField(upload_to='task_attachments/%Y/%m/%d/')
-    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        ordering = ['-uploaded_at']
-    
-    def __str__(self):
-        return f"Attachment for {self.task}"
+        return self.title
