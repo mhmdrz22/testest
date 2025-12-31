@@ -11,6 +11,7 @@ User = get_user_model()
 class TaskModelTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(
+            email='testuser@example.com',
             username='testuser',
             password='testpass123'
         )
@@ -48,10 +49,12 @@ class TaskAPITests(APITestCase):
     def setUp(self):
         self.client = APIClient()
         self.user = User.objects.create_user(
+            email='testuser@example.com',
             username='testuser',
             password='testpass123'
         )
         self.other_user = User.objects.create_user(
+            email='otheruser@example.com',
             username='otheruser',
             password='testpass123'
         )
@@ -113,7 +116,7 @@ class TaskAPITests(APITestCase):
             title='Task with Comment',
             created_by=self.user
         )
-        data = {'content': 'This is a comment'}
+        data = {'text': 'This is a comment'}
         response = self.client.post(f'/api/tasks/{task.id}/add_comment/', data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(TaskComment.objects.count(), 1)
@@ -137,6 +140,7 @@ class TaskCommentTests(APITestCase):
     def setUp(self):
         self.client = APIClient()
         self.user = User.objects.create_user(
+            email='testuser@example.com',
             username='testuser',
             password='testpass123'
         )
