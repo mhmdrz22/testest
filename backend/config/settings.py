@@ -28,7 +28,7 @@ INSTALLED_APPS = [
     "django_filters",
 
     # Local apps (توجه به پیشوند apps.)
-    "apps.accounts",
+    "accounts",
     "apps.tasks",
     "apps.adminpanel",
 ]
@@ -75,7 +75,7 @@ print(f"DEBUG: Connecting to Database -> {DATABASES['default']['ENGINE']}")
 
 # Authentication backends - support case-insensitive email login
 AUTHENTICATION_BACKENDS = [
-    'apps.accounts.backends.CaseInsensitiveEmailBackend',
+    'accounts.backends.CaseInsensitiveEmailBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
 
