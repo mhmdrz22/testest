@@ -1,21 +1,15 @@
 from rest_framework import serializers
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from .models import AdminLog, NotificationTemplate
+
+User = get_user_model()
 
 
 class UserListSerializer(serializers.ModelSerializer):
-    created_tasks = serializers.SerializerMethodField()
-    assigned_tasks = serializers.SerializerMethodField()
-    
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'is_active', 'date_joined', 'created_tasks', 'assigned_tasks']
-    
-    def get_created_tasks(self, obj):
-        return obj.created_tasks.count()
-    
-    def get_assigned_tasks(self, obj):
-        return obj.assigned_tasks.count()
+        fields = ['id', 'username', 'email', 'is_active', 'is_staff', 'created_date']
+        read_only_fields = ['id', 'created_date']
 
 
 class AdminLogSerializer(serializers.ModelSerializer):
