@@ -19,9 +19,10 @@ INSTALLED_APPS = [
     "corsheaders",
     "drf_spectacular",
     "django_filters",
-    "accounts",
-    "tasks",
-    "adminpanel",
+    "apps.accounts",                      # به جای "accounts"
+    "apps.tasks",                         # به جای "tasks"
+    "apps.adminpanel",                    # به جای "adminpanel"
+
 ]
 
 MIDDLEWARE = [
