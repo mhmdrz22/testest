@@ -56,3 +56,9 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+    
+    def save(self, *args, **kwargs):
+        # Normalize email to lowercase on save
+        if self.email:
+            self.email = self.email.lower()
+        super().save(*args, **kwargs)
