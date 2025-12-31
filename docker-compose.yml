@@ -1,5 +1,4 @@
-version: '3.8'
-
+# حذف فیلد version که منسوخ شده است
 services:
   postgres:
     image: postgres:15-alpine
@@ -62,6 +61,7 @@ services:
       - ./backend:/app
     networks:
       - taskboard-network
+    restart: unless-stopped
 
   worker:
     build:
@@ -77,14 +77,19 @@ services:
       - DB_HOST=postgres
       - DB_PORT=5432
       - REDIS_URL=redis://redis:6379
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key}
     depends_on:
-      - postgres
-      - redis
-      - backend
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
     volumes:
       - ./backend:/app
     networks:
       - taskboard-network
+    restart: unless-stopped
 
   frontend:
     build:
@@ -94,11 +99,12 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - VITE_API_BASE_URL=http://backend:8000/api
+      - VITE_API_BASE_URL=http://localhost:8000/api
     depends_on:
       - backend
     networks:
       - taskboard-network
+    restart: unless-stopped
 
 volumes:
   postgres_data:
