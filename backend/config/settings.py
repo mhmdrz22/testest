@@ -73,6 +73,12 @@ DATABASES = {
 
 print(f"DEBUG: Connecting to Database -> {DATABASES['default']['ENGINE']}")
 
+# Authentication backends - support case-insensitive email login
+AUTHENTICATION_BACKENDS = [
+    'apps.accounts.backends.CaseInsensitiveEmailBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
