@@ -1,43 +1,14 @@
-# Core Django
 Django==4.2.10
+djangorestframework==3.14.0
 django-cors-headers==4.3.1
-django-environ==0.21.0
-
-# REST API
-DjangoRESTframework==3.14.0
-drf-yasg==1.21.7
-
-# Database
+drf-spectacular==0.27.0
+djangorestframework-simplejwt==5.3.2
 psycopg2-binary==2.9.9
-
-# Async Tasks
-celery==5.3.4
-redis==5.0.1
-
-# Email
-django-celery-email==3.0.0
-
-# Authentication
-PyJWT==2.8.1
-django-rest-framework-simplejwt==5.3.2
-
-# Testing
-pytest==7.4.3
-pytest-django==4.7.0
-pytest-cov==4.1.0
-factory-boy==3.3.0
-
-# Code Quality
-flake8==6.1.0
-black==23.12.1
-isort==5.13.2
-pylint==3.0.3
-
-# Production
+dj-database-url==2.1.0
 gunicorn==21.2.0
-whitenoise==6.6.0
-
-# Utilities
-python-dateutil==2.8.2
-requests==2.31.0
-pandas==2.1.4
+celery==5.3.4
+redis==5.0.0
+django-filter==23.5
+coverage==7.4.0
+django-celery-beat==2.5.0
+django-celery-results==2.5.0
