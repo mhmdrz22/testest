@@ -1,20 +1,26 @@
-name: Tests CI
+name: Backend CI/CD
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/ci.yml'
+      - 'docker-compose.yml'
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
+    paths:
+      - 'backend/**'
 
 jobs:
-  test-backend:
+  test:
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
         image: postgres:15-alpine
         env:
-          POSTGRES_DB: test_db
+          POSTGRES_DB: taskboard_test
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
         options: >-
@@ -25,110 +31,46 @@ jobs:
         ports:
           - 5432:5432
 
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        cache: 'pip'
-    
-    - name: Install dependencies
-      run: |
-        cd backend
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-    
-    - name: Run tests
-      env:
-        DB_ENGINE: django.db.backends.postgresql
-        DB_NAME: test_db
-        DB_USER: postgres
-        DB_PASSWORD: postgres
-        DB_HOST: localhost
-        DB_PORT: 5432
-        SECRET_KEY: test-secret-key
-      run: |
-        cd backend
-        python manage.py test --verbosity=2
-    
-    - name: Generate coverage report
-      run: |
-        cd backend
-        pip install coverage
-        coverage run --source='.' manage.py test
-        coverage report
-        coverage xml
-    
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        files: ./backend/coverage.xml
-        flags: backend
-        fail_ci_if_error: false
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
 
-  test-frontend:
-    runs-on: ubuntu-latest
-    
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Node
-      uses: actions/setup-node@v3
-      with:
-        node-version: '18'
-        cache: 'npm'
-        cache-dependency-path: frontend/package-lock.json
-    
-    - name: Install dependencies
-      run: |
-        cd frontend
-        npm ci
-    
-    - name: Run linter
-      run: |
-        cd frontend
-        npm run lint || true
-    
-    - name: Run tests
-      run: |
-        cd frontend
-        npm run test -- --run
-    
-    - name: Generate coverage report
-      run: |
-        cd frontend
-        npm run test:coverage || true
+      - uses: actions/checkout@v3
 
-  code-quality:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    
-    - name: Install dependencies
-      run: |
-        cd backend
-        python -m pip install --upgrade pip
-        pip install flake8 black isort
-    
-    - name: Run Black
-      run: |
-        cd backend
-        black --check . || true
-    
-    - name: Run isort
-      run: |
-        cd backend
-        isort --check-only . || true
-    
-    - name: Run Flake8
-      run: |
-        cd backend
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics || true
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/taskboard_test
+          CELERY_BROKER_URL: redis://localhost:6379/0
+          SECRET_KEY: testing_secret_key
+        run: |
+          cd backend
+          python manage.py migrate
+
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/taskboard_test
+          CELERY_BROKER_URL: redis://localhost:6379/0
+          SECRET_KEY: testing_secret_key
+          EMAIL_BACKEND: django.core.mail.backends.console.EmailBackend
+        run: |
+          cd backend
+          python manage.py test
