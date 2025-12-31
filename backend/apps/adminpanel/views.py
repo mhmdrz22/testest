@@ -1,9 +1,11 @@
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from .models import AdminLog, NotificationTemplate
 from .serializers import UserListSerializer, AdminLogSerializer, NotificationTemplateSerializer, NotificationSendSerializer
+
+User = get_user_model()
 
 
 class IsAdminUser(permissions.BasePermission):
