@@ -13,7 +13,7 @@ class UserManagerTests(TestCase):
         Test that email is normalized to lowercase.
         """
         email = "TEST@Example.com"
-        user = User.objects.create_user(email=email, password="password123")
+        user = User.objects.create_user(email=email, password="password123", username="testuser")
         self.assertEqual(user.email, "test@example.com")
 
     def test_create_user_raises_error_without_email(self):
@@ -21,13 +21,13 @@ class UserManagerTests(TestCase):
         Test that creating a user without an email raises ValueError.
         """
         with self.assertRaises(ValueError):
-            User.objects.create_user(email=None, password="password123")
+            User.objects.create_user(email=None, password="password123", username="testuser")
 
     def test_create_superuser_flags(self):
         """
         Test that create_superuser sets correct flags.
         """
-        admin = User.objects.create_superuser(email="admin@example.com", password="password123")
+        admin = User.objects.create_superuser(email="admin@example.com", password="password123", username="admin")
         self.assertTrue(admin.is_staff)
         self.assertTrue(admin.is_superuser)
         self.assertTrue(admin.is_active)
@@ -36,7 +36,7 @@ class UserManagerTests(TestCase):
         """
         Test that password is hashed, not stored in plain text.
         """
-        user = User.objects.create_user(email="secure@example.com", password="secretpassword")
+        user = User.objects.create_user(email="secure@example.com", password="secretpassword", username="secureuser")
         self.assertNotEqual(user.password, "secretpassword")
         self.assertTrue(user.check_password("secretpassword"))
 
@@ -52,7 +52,7 @@ class RegisterSerializerTests(TestCase):
         """
         Test that serializer rejects email if it exists (case-insensitive).
         """
-        User.objects.create_user(email="unique@example.com", password="oldpassword")
+        User.objects.create_user(email="unique@example.com", password="oldpassword", username="olduser")
 
         # Try to register with same email but different casing
         data = {
