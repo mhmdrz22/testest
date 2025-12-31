@@ -117,7 +117,8 @@ SPECTACULAR_SETTINGS = {
 CORS_ALLOW_ALL_ORIGINS = True
 
 # نکته مهم: مسیر کامل به اپ یوزر سفارشی
-AUTH_USER_MODEL = "apps.accounts.User"
+AUTH_USER_MODEL = "accounts.User"
+
 
 SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
