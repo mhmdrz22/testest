@@ -1,28 +1,36 @@
 import os
-import dj_database_url
 from pathlib import Path
+
+import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# امنیتی: در محیط واقعی حتماً SECRET_KEY را از env بگیر
 SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-change-me")
+
 DEBUG = True
+
 ALLOWED_HOSTS = ["*"]
 
 INSTALLED_APPS = [
+    # Django apps
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+
+    # Third‑party apps
     "rest_framework",
     "corsheaders",
     "drf_spectacular",
     "django_filters",
-    "apps.accounts",                      # به جای "accounts"
-    "apps.tasks",                         # به جای "tasks"
-    "apps.adminpanel",                    # به جای "adminpanel"
 
+    # Local apps (توجه به پیشوند apps.)
+    "apps.accounts",
+    "apps.tasks",
+    "apps.adminpanel",
 ]
 
 MIDDLEWARE = [
@@ -56,6 +64,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
+# Database (با استفاده از dj_database_url و متغیرهای محیطی GitHub Actions/Docker)
 DATABASES = {
     "default": dj_database_url.config(
         conn_max_age=600,
@@ -63,7 +72,6 @@ DATABASES = {
 }
 
 print(f"DEBUG: Connecting to Database -> {DATABASES['default']['ENGINE']}")
-
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -89,6 +97,7 @@ STATIC_URL = "static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# DRF settings
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_AUTHENTICATION_CLASSES": (
@@ -107,12 +116,13 @@ SPECTACULAR_SETTINGS = {
 
 CORS_ALLOW_ALL_ORIGINS = True
 
-AUTH_USER_MODEL = "accounts.User"
+# نکته مهم: مسیر کامل به اپ یوزر سفارشی
+AUTH_USER_MODEL = "apps.accounts.User"
 
 SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
-# Celery Configuration
-CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://redis:6379/0')
-CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://redis:6379/1')
+# Celery configuration
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")
+CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://redis:6379/1")
