@@ -8,8 +8,8 @@ User = get_user_model()
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ("id", "email", "username", "is_active")
-        read_only_fields = ("id", "is_active")
+        fields = ("id", "email", "username", "is_active", "is_verified")
+        read_only_fields = ("id", "is_active", "is_verified")
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -19,9 +19,6 @@ class RegisterSerializer(serializers.ModelSerializer):
         model = User
         fields = ("id", "email", "username", "password")
         read_only_fields = ("id",)
-        extra_kwargs = {
-            'username': {'required': False, 'allow_blank': True, 'allow_null': True}
-        }
 
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exists():
@@ -35,8 +32,6 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     """Return basic user info along with JWT pair."""
-    
-    username_field = 'email'  # Use email as the username field for authentication
 
     @classmethod
     def get_token(cls, user):

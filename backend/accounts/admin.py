@@ -1,45 +1,45 @@
 from django.contrib import admin
-from .models import User
-from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.auth import get_user_model
+from django.utils.translation import gettext_lazy as _
+
+User = get_user_model()
 
 
-class UserAdminConfig(UserAdmin):
-    model = User
-    search_fields = ("email",)
-    list_filter = ("email", "is_active", "is_staff")
-    ordering = ("-created_date",)
-    list_display = ("email", "username", "is_active", "is_staff", "is_verified")
+@admin.register(User)
+class UserAdmin(BaseUserAdmin):
+    ordering = ["-created_date"]
+    list_display = ["email", "username", "is_staff", "is_active", "is_verified", "created_date"]
+    list_filter = ["is_staff", "is_active", "is_verified"]
+    search_fields = ["email", "username"]
+    
     fieldsets = (
-        ("Authentication", {"fields": ("email", "username", "password")}),
-        ("Permissions", {"fields": ("is_staff", "is_active", "is_verified")}),
+        (None, {"fields": ("email", "password")}),
+        (_("Personal info"), {"fields": ("username",)}),
         (
-            "Group Permissions",
+            _("Permissions"),
             {
                 "fields": (
+                    "is_active",
+                    "is_staff",
+                    "is_superuser",
+                    "is_verified",
                     "groups",
                     "user_permissions",
                 )
             },
         ),
-        ("Important dates", {"fields": ("last_login",)}),
+        (_("Important dates"), {"fields": ("last_login", "created_date", "updated_date")}),
     )
+    
     add_fieldsets = (
         (
             None,
             {
                 "classes": ("wide",),
-                "fields": (
-                    "username",
-                    "email",
-                    "password1",
-                    "password2",
-                    "is_active",
-                    "is_staff",
-                    "is_verified"
-                ),
+                "fields": ("email", "username", "password1", "password2"),
             },
         ),
     )
     
-
-admin.site.register(User, UserAdminConfig)
+    readonly_fields = ["created_date", "updated_date", "last_login"]
