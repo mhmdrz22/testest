@@ -50,15 +50,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     updated_date = models.DateTimeField(auto_now=True)
 
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = []  # No additional required fields for createsuperuser
+    REQUIRED_FIELDS = ["username"]
 
     objects = UserManager()
 
     def __str__(self):
         return self.email
-    
-    def save(self, *args, **kwargs):
-        # Normalize email to lowercase on save
-        if self.email:
-            self.email = self.email.lower()
-        super().save(*args, **kwargs)
