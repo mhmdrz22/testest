@@ -1,5 +1,5 @@
-from django.contrib.auth.backends import ModelBackend
 from django.contrib.auth import get_user_model
+from django.contrib.auth.backends import ModelBackend
 
 User = get_user_model()
 
@@ -16,15 +16,15 @@ class CaseInsensitiveEmailBackend(ModelBackend):
             return None
         
         try:
-            # Perform case-insensitive email lookup
+            # Case-insensitive email lookup
             user = User.objects.get(email__iexact=username)
         except User.DoesNotExist:
-            # Run the default password hasher once to reduce the timing
-            # difference between an existing and a nonexistent user
+            # Run the default password hasher once to reduce timing
+            # difference between existing and non-existing users
             User().set_password(password)
             return None
-        else:
-            if user.check_password(password) and self.user_can_authenticate(user):
-                return user
+        
+        if user.check_password(password) and self.user_can_authenticate(user):
+            return user
         
         return None
