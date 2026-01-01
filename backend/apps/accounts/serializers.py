@@ -1,50 +1,51 @@
+from django.contrib.auth import get_user_model
 from rest_framework import serializers
-from django.contrib.auth.models import User
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+
+User = get_user_model()
 
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name']
-        read_only_fields = ['id']
-
-
-class UserDetailSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'is_staff', 'is_active', 'date_joined']
-        read_only_fields = ['id', 'date_joined']
+        fields = ("id", "email", "username", "is_active", "is_verified")
+        read_only_fields = ("id", "is_active", "is_verified")
 
 
 class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, min_length=6)
-    password_confirm = serializers.CharField(write_only=True, min_length=6)
-    
+    password = serializers.CharField(write_only=True, min_length=8)
+
     class Meta:
         model = User
-        fields = ['username', 'email', 'password', 'password_confirm', 'first_name', 'last_name']
-    
-    def validate(self, data):
-        if data['password'] != data.pop('password_confirm'):
-            raise serializers.ValidationError({'password': 'Passwords do not match'})
-        return data
-    
+        fields = ("id", "email", "username", "password")
+        read_only_fields = ("id",)
+
+    def validate_email(self, value):
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("A user with that email already exists.")
+        return value
+
     def create(self, validated_data):
-        user = User.objects.create_user(
-            username=validated_data['username'],
-            email=validated_data.get('email'),
-            password=validated_data['password'],
-            first_name=validated_data.get('first_name', ''),
-            last_name=validated_data.get('last_name', '')
-        )
-        return user
+        password = validated_data.pop("password")
+        return User.objects.create_user(password=password, **validated_data)
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """Return basic user info along with JWT pair."""
+
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
-        token['username'] = user.username
-        token['email'] = user.email
+        token["email"] = user.email
+        if user.username:
+            token["username"] = user.username
         return token
+
+    def validate(self, attrs):
+        # Normalize email to lowercase before authentication
+        if "email" in attrs:
+            attrs["email"] = attrs["email"].lower()
+
+        data = super().validate(attrs)
+        data["user"] = UserSerializer(self.user).data
+        return data
