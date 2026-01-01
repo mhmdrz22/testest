@@ -13,7 +13,7 @@ class UserManagerTests(TestCase):
         Test that email is normalized to lowercase.
         """
         email = "TEST@Example.com"
-        user = User.objects.create_user(email=email, password="password123", username="testuser")
+        user = User.objects.create_user(email=email, password="password123")
         self.assertEqual(user.email, "test@example.com")
 
     def test_create_user_raises_error_without_email(self):
@@ -21,13 +21,13 @@ class UserManagerTests(TestCase):
         Test that creating a user without an email raises ValueError.
         """
         with self.assertRaises(ValueError):
-            User.objects.create_user(email=None, password="password123", username="testuser")
+            User.objects.create_user(email=None, password="password123")
 
     def test_create_superuser_flags(self):
         """
         Test that create_superuser sets correct flags.
         """
-        admin = User.objects.create_superuser(email="admin@example.com", password="password123", username="admin")
+        admin = User.objects.create_superuser(email="admin@example.com", password="password123")
         self.assertTrue(admin.is_staff)
         self.assertTrue(admin.is_superuser)
         self.assertTrue(admin.is_active)
@@ -36,7 +36,7 @@ class UserManagerTests(TestCase):
         """
         Test that password is hashed, not stored in plain text.
         """
-        user = User.objects.create_user(email="secure@example.com", password="secretpassword", username="secureuser")
+        user = User.objects.create_user(email="secure@example.com", password="secretpassword")
         self.assertNotEqual(user.password, "secretpassword")
         self.assertTrue(user.check_password("secretpassword"))
 
@@ -52,7 +52,7 @@ class RegisterSerializerTests(TestCase):
         """
         Test that serializer rejects email if it exists (case-insensitive).
         """
-        User.objects.create_user(email="unique@example.com", password="oldpassword", username="olduser")
+        User.objects.create_user(email="unique@example.com", password="oldpassword")
 
         # Try to register with same email but different casing
         data = {
@@ -181,5 +181,3 @@ class AuthIntegrationTests(APITestCase):
         }
         response = self.client.post(self.login_url, data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-# Trigger workflow
