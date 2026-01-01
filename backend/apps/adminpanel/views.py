@@ -1,86 +1,79 @@
-from rest_framework import viewsets, status, permissions
-from rest_framework.decorators import action
+from django.db.models import Count, Q
+from rest_framework.views import APIView
 from rest_framework.response import Response
-from django.contrib.auth import get_user_model
-from .models import AdminLog, NotificationTemplate
-from .serializers import UserListSerializer, AdminLogSerializer, NotificationTemplateSerializer, NotificationSendSerializer
+from rest_framework import status
+from rest_framework import serializers
+from django.utils.crypto import get_random_string
 
-User = get_user_model()
+from apps.accounts.models import User
+from apps.tasks.models import Task
+from .permissions import IsStaffUser
+from .tasks import send_admin_notification_email
 
+class AdminOverviewView(APIView):
+    permission_classes = [IsStaffUser]
 
-class IsAdminUser(permissions.BasePermission):
-    def has_permission(self, request, view):
-        return request.user and request.user.is_staff
-
-
-class AdminOverviewViewSet(viewsets.ViewSet):
-    permission_classes = [IsAdminUser]
-    
-    @action(detail=False, methods=['get'])
-    def overview(self, request):
-        """Get admin dashboard overview"""
-        total_users = User.objects.count()
-        active_users = User.objects.filter(is_active=True).count()
-        
-        from apps.tasks.models import Task
-        total_tasks = Task.objects.count()
-        open_tasks = Task.objects.filter(status='open').count()
-        closed_tasks = Task.objects.filter(status='closed').count()
-        
-        return Response({
-            'users': {
-                'total': total_users,
-                'active': active_users
-            },
-            'tasks': {
-                'total': total_tasks,
-                'open': open_tasks,
-                'closed': closed_tasks
-            }
-        })
-    
-    @action(detail=False, methods=['get'])
-    def users(self, request):
-        """Get all users list for admin"""
-        users = User.objects.all()
-        serializer = UserListSerializer(users, many=True)
-        return Response(serializer.data)
-
-
-class AdminLogViewSet(viewsets.ModelViewSet):
-    queryset = AdminLog.objects.all()
-    serializer_class = AdminLogSerializer
-    permission_classes = [IsAdminUser]
-    filterset_fields = ['action', 'admin']
-    ordering = ['-created_at']
-    
-    def perform_create(self, serializer):
-        serializer.save(admin=self.request.user)
-
-
-class NotificationTemplateViewSet(viewsets.ModelViewSet):
-    queryset = NotificationTemplate.objects.all()
-    serializer_class = NotificationTemplateSerializer
-    permission_classes = [IsAdminUser]
-    
-    @action(detail=False, methods=['post'])
-    def send_notification(self, request):
-        """Send notification to users"""
-        serializer = NotificationSendSerializer(data=request.data)
-        if serializer.is_valid():
-            # Here you would implement the actual notification sending logic
-            # For now, we'll just log it
-            user_ids = serializer.validated_data.get('user_ids')
-            template_id = serializer.validated_data.get('template_id')
-            
-            AdminLog.objects.create(
-                admin=request.user,
-                action='send_notification',
-                description=f'Sent notification to {len(user_ids)} users using template {template_id}'
+    def get(self, request, *args, **kwargs):
+        # Count "open" tasks. Based on Task model, open usually means TODO or DOING.
+        # We will filter for status IN ['open', 'in_progress'].
+        queryset = (
+            User.objects
+            .all()
+            .annotate(
+                open_tasks_count=Count(
+                    "created_tasks",
+                    filter=Q(created_tasks__status__in=["open", "in_progress"]),
+                    distinct=True,
+                )
             )
-            
-            return Response({
-                'status': 'success',
-                'message': f'Notification sent to {len(user_ids)} users'
-            })
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        )
+        data = [
+            {
+                "id": user.id,
+                "email": user.email,
+                "username": user.username,
+                # Fallback if full_name exists in future or property
+                "full_name": getattr(user, "full_name", ""),
+                "is_active": user.is_active,
+                "open_tasks_count": user.open_tasks_count,
+            }
+            for user in queryset
+        ]
+        return Response({"users": data}, status=status.HTTP_200_OK)
+
+
+class AdminNotifySerializer(serializers.Serializer):
+    recipients = serializers.ListField(
+        child=serializers.EmailField(),
+        allow_empty=False,
+    )
+    message = serializers.CharField()
+
+
+class AdminNotifyView(APIView):
+    permission_classes = [IsStaffUser]
+
+    def post(self, request, *args, **kwargs):
+        serializer = AdminNotifySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        recipients = serializer.validated_data["recipients"]
+        message = serializer.validated_data["message"]
+
+        # Filter only existing users
+        existing_users = User.objects.filter(email__in=recipients).values_list("email", flat=True)
+        recipient_list = list(existing_users)
+
+        if not recipient_list:
+            return Response(
+                {"detail": "No valid recipients found."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        job_id = get_random_string(32)
+        # Call Celery task asynchronously
+        send_admin_notification_email.delay(recipient_list, message)
+
+        return Response(
+            {"job_id": job_id, "recipients_count": len(recipient_list)},
+            status=status.HTTP_202_ACCEPTED,
+        )

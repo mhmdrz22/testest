@@ -1,44 +1,24 @@
 from celery import shared_task
-from .models import AdminLog
-
-
-@shared_task
-def send_bulk_notification(user_ids, template_id, custom_subject=None, custom_body=None):
-    """Send bulk notification to users"""
-    from .models import NotificationTemplate
-    from django.contrib.auth.models import User
-    
-    try:
-        template = NotificationTemplate.objects.get(id=template_id)
-        users = User.objects.filter(id__in=user_ids)
-        
-        # Here you would implement the actual email sending logic
-        # For now, we'll just log it
-        
-        subject = custom_subject or template.subject
-        body = custom_body or template.body
-        
-        # Send email to each user (implement with django.core.mail)
-        # For example:
-        # send_mail(subject, body, 'from@example.com', [user.email for user in users])
-        
-        return f'Notification sent to {len(users)} users'
-    except NotificationTemplate.DoesNotExist:
-        return 'Template not found'
-
+from django.core.mail import send_mail
+from django.conf import settings
 
 @shared_task
-def log_admin_action(admin_id, action, description):
-    """Log admin action"""
-    from django.contrib.auth.models import User
-    
-    try:
-        admin = User.objects.get(id=admin_id)
-        AdminLog.objects.create(
-            admin=admin,
-            action=action,
-            description=description
-        )
-        return f'Action logged: {action}'
-    except User.DoesNotExist:
-        return 'Admin user not found'
+def send_admin_notification_email(recipients, message_markdown):
+    """
+    recipients: list of email strings
+    message_markdown: markdown text (currently sent as plain text)
+    """
+    subject = "Team Task Board Notification"
+    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@example.com")
+
+    if not recipients:
+        return {"status": "no_recipients"}
+
+    send_mail(
+        subject=subject,
+        message=message_markdown,
+        from_email=from_email,
+        recipient_list=recipients,
+        fail_silently=False,
+    )
+    return {"status": "sent", "recipients_count": len(recipients)}
