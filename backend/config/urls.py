@@ -17,10 +17,9 @@ def root_view(request):
 urlpatterns = [
     path("", root_view, name="root"),
     path("admin/", admin.site.urls),
-    path("api/auth/", include("accounts.urls")),
-    path("api/", include("apps.tasks.urls")),
-    path("api/admin/", include("apps.adminpanel.urls")),
-
+    path("api/accounts/", include("accounts.urls")),
+    path("api/tasks/", include("tasks.urls")),
+    path("api/admin/", include("adminpanel.urls")),
 
     # OpenAPI schema
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
