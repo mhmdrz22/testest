@@ -27,10 +27,10 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "django_filters",
 
-    # Local apps (توجه به پیشوند apps.)
+    # Local apps - FIXED: removed apps. prefix
     "accounts",
-    "apps.tasks",
-    "apps.adminpanel",
+    "tasks",
+    "adminpanel",
 ]
 
 MIDDLEWARE = [
