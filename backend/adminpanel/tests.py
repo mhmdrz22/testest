@@ -4,6 +4,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 from tasks.models import Task
+from unittest.mock import patch, MagicMock
 
 User = get_user_model()
 
@@ -63,19 +64,31 @@ class AdminNotifyTests(APITestCase):
         )
         self.notify_url = reverse("admin-notify")
 
-    def test_admin_can_send_notification(self):
+    @patch('adminpanel.views.send_admin_notification_email.delay')
+    def test_admin_can_send_notification(self, mock_celery_task):
         """
         Test that admin can send notification to existing users.
+        Uses mock to avoid Celery/Redis connection issues in tests.
         """
+        # Mock the Celery task to avoid Redis connection
+        mock_celery_task.return_value = MagicMock(id='test-job-id')
+        
         self.client.force_authenticate(user=self.admin)
         data = {
             "recipients": ["user1@example.com", "user2@example.com"],
             "message": "Test notification message"
         }
         response = self.client.post(self.notify_url, data, format="json")
+        
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         self.assertIn("job_id", response.data)
         self.assertEqual(response.data["recipients_count"], 2)
+        
+        # Verify the Celery task was called with correct arguments
+        mock_celery_task.assert_called_once()
+        call_args = mock_celery_task.call_args[0]
+        self.assertEqual(len(call_args[0]), 2)  # 2 recipients
+        self.assertEqual(call_args[1], "Test notification message")
 
     def test_notify_with_invalid_email(self):
         """
