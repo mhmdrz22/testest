@@ -1,27 +1,50 @@
-# حذف فیلد version که منسوخ شده است
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: taskboard-postgres
-    environment:
-      POSTGRES_DB: ${DB_NAME:-taskboard_db}
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres_password}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+  backend:
+    build: ./backend
+    command: sh -c "python manage.py migrate && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3"
     ports:
-      - "5432:5432"
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - SECRET_KEY=${SECRET_KEY}
+      - DEBUG=${DEBUG}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+  db:
+    image: postgres:15-alpine
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
       timeout: 5s
       retries: 5
-    networks:
-      - taskboard-network
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
   redis:
     image: redis:7-alpine
-    container_name: taskboard-redis
     ports:
       - "6379:6379"
     healthcheck:
@@ -29,87 +52,20 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - taskboard-network
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: taskboard-backend
-    command: >
-      sh -c "python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8000"
-    environment:
-      - DEBUG=${DEBUG:-True}
-      - DB_ENGINE=django.db.backends.postgresql
-      - DB_NAME=${DB_NAME:-taskboard_db}
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-postgres_password}
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - REDIS_URL=redis://redis:6379
-      - SECRET_KEY=${SECRET_KEY:-dev-secret-key}
-    ports:
-      - "8000:8000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    volumes:
-      - ./backend:/app
-    networks:
-      - taskboard-network
-    restart: unless-stopped
 
   worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: taskboard-worker
-    command: celery -A config worker -l info
+    build: ./backend
+    command: celery -A config worker --loglevel=info
     environment:
-      - DB_ENGINE=django.db.backends.postgresql
-      - DB_NAME=${DB_NAME:-taskboard_db}
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-postgres_password}
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - REDIS_URL=redis://redis:6379
-      - SECRET_KEY=${SECRET_KEY:-dev-secret-key}
+      - DATABASE_URL=${DATABASE_URL}
+      - SECRET_KEY=${SECRET_KEY}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
       redis:
         condition: service_healthy
-      backend:
-        condition: service_started
-    volumes:
-      - ./backend:/app
-    networks:
-      - taskboard-network
-    restart: unless-stopped
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: taskboard-frontend
-    ports:
-      - "3000:3000"
-    environment:
-      - VITE_API_BASE_URL=http://localhost:8000/api
-    depends_on:
-      - backend
-    networks:
-      - taskboard-network
-    restart: unless-stopped
 
 volumes:
   postgres_data:
-    driver: local
-
-networks:
-  taskboard-network:
-    driver: bridge
