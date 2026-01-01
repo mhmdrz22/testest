@@ -50,6 +50,12 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
+      - name: Remove old apps/ directory structure
+        run: |
+          cd backend
+          rm -rf apps/
+          echo "Removed old apps/ directory"
+
       - name: Install dependencies
         run: |
           cd backend
