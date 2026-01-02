@@ -5,6 +5,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework import status
+from unittest.mock import patch, MagicMock
 
 User = get_user_model()
 
@@ -68,17 +69,27 @@ class AdminPanelAccessTestCase(TestCase):
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
     
-    def test_admin_notify_success(self):
+    @patch('adminpanel.views.send_admin_notification_email')
+    def test_admin_notify_success(self, mock_celery_task):
         """Test successful email notification"""
+        # Mock the Celery task to avoid Redis connection
+        mock_result = MagicMock()
+        mock_result.id = 'test-job-id-12345'
+        mock_celery_task.delay.return_value = mock_result
+        
         self.client.force_authenticate(user=self.admin)
         response = self.client.post('/api/admin/notify/', {
             'recipients': ['user@test.com'],
             'message': '# Test\n\nThis is a test'
         })
+        
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         self.assertIn('job_id', response.data)
         self.assertIn('recipients_count', response.data)
         self.assertEqual(response.data['recipients_count'], 1)
+        
+        # Verify the Celery task was called
+        mock_celery_task.delay.assert_called_once()
 
 
 class AdminOverviewDataTestCase(TestCase):
