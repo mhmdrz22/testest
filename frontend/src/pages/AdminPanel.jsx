@@ -1,167 +1,190 @@
-import React, { useState, useEffect } from 'react'
-import { adminAPI, userAPI } from '../services/api'
-import './AdminPanel.css'
+import React, { useState, useEffect } from 'react';
+import './AdminPanel.css';
 
 function AdminPanel() {
-  const [users, setUsers] = useState([])
-  const [emailData, setEmailData] = useState({
-    subject: '',
-    body: '',
-    recipients: [],
-  })
-  const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState('')
-  const [error, setError] = useState('')
+  const [users, setUsers] = useState([]);
+  const [selectedUsers, setSelectedUsers] = useState(new Set());
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   useEffect(() => {
-    fetchUsers()
-  }, [])
+    fetchUserOverview();
+  }, []);
 
-  const fetchUsers = async () => {
+  async function fetchUserOverview() {
     try {
-      const response = await userAPI.getUsers()
-      setUsers(response.data)
+      setLoading(true);
+      const response = await fetch('/api/admin/overview/', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        },
+      });
+      if (!response.ok) throw new Error('Failed to fetch users');
+      const data = await response.json();
+      setUsers(data);
+      setError('');
     } catch (err) {
-      setError('Failed to fetch users')
-    }
-  }
-
-  const handleEmailChange = (e) => {
-    const { name, value } = e.target
-    setEmailData((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
-  }
-
-  const handleRecipientToggle = (userId) => {
-    setEmailData((prev) => ({
-      ...prev,
-      recipients: prev.recipients.includes(userId)
-        ? prev.recipients.filter((id) => id !== userId)
-        : [...prev.recipients, userId],
-    }))
-  }
-
-  const handleSendEmail = async (e) => {
-    e.preventDefault()
-    if (emailData.recipients.length === 0) {
-      setError('Please select at least one recipient')
-      return
-    }
-
-    setLoading(true)
-    setError('')
-    setMessage('')
-
-    try {
-      await adminAPI.sendNotification(emailData)
-      setMessage('Email sent successfully!')
-      setEmailData({ subject: '', body: '', recipients: [] })
-      setTimeout(() => setMessage(''), 3000)
-    } catch (err) {
-      setError('Failed to send email')
+      setError(err.message);
     } finally {
-      setLoading(false)
+      setLoading(false);
+    }
+  }
+
+  function toggleUser(userId) {
+    const newSelected = new Set(selectedUsers);
+    if (newSelected.has(userId)) {
+      newSelected.delete(userId);
+    } else {
+      newSelected.add(userId);
+    }
+    setSelectedUsers(newSelected);
+  }
+
+  function selectAll() {
+    if (selectedUsers.size === users.length) {
+      setSelectedUsers(new Set());
+    } else {
+      setSelectedUsers(new Set(users.map(u => u.id)));
+    }
+  }
+
+  async function handleSendEmail() {
+    if (selectedUsers.size === 0) {
+      setError('Please select at least one user');
+      return;
+    }
+    if (!message.trim()) {
+      setError('Please enter a message');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError('');
+      setSuccess('');
+      
+      const recipients = users
+        .filter(u => selectedUsers.has(u.id))
+        .map(u => u.email);
+
+      const response = await fetch('/api/admin/notify/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        },
+        body: JSON.stringify({
+          recipients,
+          message: message.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to send email');
+      }
+
+      const data = await response.json();
+      setSuccess(`Email queued successfully! Job ID: ${data.job_id}`);
+      setMessage('');
+      setSelectedUsers(new Set());
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
-    <main>
-      <div className="admin-header">
-        <h2>🔐 Admin Panel</h2>
-      </div>
+    <div className="admin-panel">
+      <header className="admin-header">
+        <h1>Admin Panel</h1>
+        <p>Manage users and send email notifications</p>
+      </header>
 
-      {error && <div className="alert alert-error">{error}</div>}
-      {message && <div className="alert alert-success">{message}</div>}
+      {error && <div className="error-box">{error}</div>}
+      {success && <div className="success-box">{success}</div>}
 
-      <div className="admin-grid">
-        {/* Users Section */}
-        <div className="card">
-          <div className="card-header">
-            <h3>👥 Users ({users.length})</h3>
-          </div>
-          <div className="card-body">
-            {users.length === 0 ? (
-              <p>No users found</p>
-            ) : (
-              <ul className="users-list">
-                {users.map((user) => (
-                  <li key={user.id} className="user-item">
-                    <span className="user-name">{user.username || user.email}</span>
-                    <span className="user-email">{user.email}</span>
-                  </li>
+      <section className="panel">
+        <div className="panel-head">
+          <h2 className="panel-title">Users Overview</h2>
+          <p className="panel-subtitle">
+            {selectedUsers.size} of {users.length} users selected
+          </p>
+        </div>
+
+        {loading && !users.length ? (
+          <div className="info-box">Loading users...</div>
+        ) : (
+          <div className="table-container">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>
+                    <input
+                      type="checkbox"
+                      checked={selectedUsers.size === users.length && users.length > 0}
+                      onChange={selectAll}
+                    />
+                  </th>
+                  <th>Email</th>
+                  <th>Username</th>
+                  <th>Open Tasks</th>
+                  <th>Total Tasks</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map(user => (
+                  <tr key={user.id} className={selectedUsers.has(user.id) ? 'selected' : ''}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selectedUsers.has(user.id)}
+                        onChange={() => toggleUser(user.id)}
+                      />
+                    </td>
+                    <td>{user.email}</td>
+                    <td>{user.username}</td>
+                    <td>{user.open_tasks || 0}</td>
+                    <td>{user.total_tasks || 0}</td>
+                  </tr>
                 ))}
-              </ul>
-            )}
+              </tbody>
+            </table>
           </div>
+        )}
+      </section>
+
+      <section className="panel">
+        <div className="panel-head">
+          <h2 className="panel-title">Send Email Notification</h2>
+          <p className="panel-subtitle">Compose message using Markdown</p>
         </div>
 
-        {/* Email Sender Section */}
-        <div className="card">
-          <div className="card-header">
-            <h3>✉️ Send Email Notification</h3>
-          </div>
-          <div className="card-body">
-            <form onSubmit={handleSendEmail}>
-              <div className="form-group">
-                <label className="form-label">Subject</label>
-                <input
-                  type="text"
-                  name="subject"
-                  className="form-input"
-                  value={emailData.subject}
-                  onChange={handleEmailChange}
-                  placeholder="Email subject"
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Message Body</label>
-                <textarea
-                  name="body"
-                  className="form-textarea"
-                  value={emailData.body}
-                  onChange={handleEmailChange}
-                  placeholder="Write your message here..."
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Recipients</label>
-                <div className="recipients-list">
-                  {users.length === 0 ? (
-                    <p>No users available</p>
-                  ) : (
-                    users.map((user) => (
-                      <label key={user.id} className="checkbox-item">
-                        <input
-                          type="checkbox"
-                          checked={emailData.recipients.includes(user.id)}
-                          onChange={() => handleRecipientToggle(user.id)}
-                        />
-                        <span>{user.username || user.email}</span>
-                      </label>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={loading}
-              >
-                {loading ? 'Sending...' : 'Send Email'}
-              </button>
-            </form>
-          </div>
+        <div className="form-field full-width">
+          <label>Message (Markdown supported)</label>
+          <textarea
+            className="markdown-editor"
+            rows="10"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="# Hello!\n\nThis is a reminder about your open tasks...\n\n- Task 1\n- Task 2"
+          />
         </div>
-      </div>
-    </main>
-  )
+
+        <div className="form-actions">
+          <button
+            onClick={handleSendEmail}
+            disabled={loading || selectedUsers.size === 0 || !message.trim()}
+          >
+            {loading ? 'Sending...' : 'Send Email to Selected Users'}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
 }
 
-export default AdminPanel
+export default AdminPanel;
