@@ -27,7 +27,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "django_filters",
 
-    # Local apps - FIXED: removed apps. prefix
+    # Local apps
     "accounts",
     "tasks",
     "adminpanel",
@@ -125,7 +125,6 @@ CORS_ALLOW_ALL_ORIGINS = True
 # نکته مهم: مسیر کامل به اپ یوزر سفارشی
 AUTH_USER_MODEL = "accounts.User"
 
-
 SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
@@ -133,3 +132,15 @@ SIMPLE_JWT = {
 # Celery configuration
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")
 CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://redis:6379/1")
+
+# Email configuration
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend"  # For development - prints to console
+)
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", 587))
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True") == "True"
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@taskboard.local")
