@@ -1,104 +1,126 @@
+"""
+Tests for Admin Panel functionality
+"""
 from django.test import TestCase
 from django.contrib.auth import get_user_model
-from django.urls import reverse
+from rest_framework.test import APIClient
 from rest_framework import status
-from rest_framework.test import APITestCase
-from tasks.models import Task
-from unittest.mock import patch, MagicMock
 
 User = get_user_model()
 
 
-class AdminOverviewTests(APITestCase):
+class AdminPanelAccessTestCase(TestCase):
+    """Test access control for admin panel"""
+    
     def setUp(self):
-        # Create admin user
-        self.admin = User.objects.create_superuser(
-            email="admin@example.com",
-            password="adminpass123"
-        )
+        """Set up test client and users"""
+        self.client = APIClient()
+        
         # Create regular user
         self.user = User.objects.create_user(
-            email="user@example.com",
-            password="userpass123"
+            email='user@test.com',
+            username='testuser',
+            password='testpass123'
         )
-        self.overview_url = reverse("admin-overview")
-
-    def test_admin_can_access_overview(self):
-        """
-        Test that admin user can access the overview endpoint.
-        """
-        self.client.force_authenticate(user=self.admin)
-        response = self.client.get(self.overview_url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("users", response.data)
-
-    def test_regular_user_cannot_access_overview(self):
-        """
-        Test that regular user cannot access admin overview.
-        """
-        self.client.force_authenticate(user=self.user)
-        response = self.client.get(self.overview_url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-    def test_unauthenticated_cannot_access_overview(self):
-        """
-        Test that unauthenticated users cannot access overview.
-        """
-        response = self.client.get(self.overview_url)
+        
+        # Create admin user
+        self.admin = User.objects.create_user(
+            email='admin@test.com',
+            username='admin',
+            password='adminpass123',
+            is_staff=True,
+            is_superuser=True
+        )
+    
+    def test_admin_overview_requires_authentication(self):
+        """Test that admin overview requires authentication"""
+        response = self.client.get('/api/admin/overview/')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-
-
-class AdminNotifyTests(APITestCase):
-    def setUp(self):
-        self.admin = User.objects.create_superuser(
-            email="admin@example.com",
-            password="adminpass123"
-        )
-        self.user1 = User.objects.create_user(
-            email="user1@example.com",
-            password="pass123"
-        )
-        self.user2 = User.objects.create_user(
-            email="user2@example.com",
-            password="pass123"
-        )
-        self.notify_url = reverse("admin-notify")
-
-    @patch('adminpanel.views.send_admin_notification_email.delay')
-    def test_admin_can_send_notification(self, mock_celery_task):
-        """
-        Test that admin can send notification to existing users.
-        Uses mock to avoid Celery/Redis connection issues in tests.
-        """
-        # Mock the Celery task to avoid Redis connection
-        mock_celery_task.return_value = MagicMock(id='test-job-id')
-        
+    
+    def test_admin_overview_requires_staff_permission(self):
+        """Test that regular users cannot access admin overview"""
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get('/api/admin/overview/')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+    
+    def test_admin_overview_accessible_by_staff(self):
+        """Test that staff users can access admin overview"""
         self.client.force_authenticate(user=self.admin)
-        data = {
-            "recipients": ["user1@example.com", "user2@example.com"],
-            "message": "Test notification message"
-        }
-        response = self.client.post(self.notify_url, data, format="json")
-        
-        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
-        self.assertIn("job_id", response.data)
-        self.assertEqual(response.data["recipients_count"], 2)
-        
-        # Verify the Celery task was called with correct arguments
-        mock_celery_task.assert_called_once()
-        call_args = mock_celery_task.call_args[0]
-        self.assertEqual(len(call_args[0]), 2)  # 2 recipients
-        self.assertEqual(call_args[1], "Test notification message")
-
-    def test_notify_with_invalid_email(self):
-        """
-        Test notification with non-existing email addresses.
-        """
+        response = self.client.get('/api/admin/overview/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsInstance(response.data, list)
+    
+    def test_admin_notify_requires_staff_permission(self):
+        """Test that regular users cannot send notifications"""
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post('/api/admin/notify/', {
+            'recipients': ['user@test.com'],
+            'message': 'Test message'
+        })
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+    
+    def test_admin_notify_validates_recipients(self):
+        """Test that notify endpoint validates recipient emails"""
         self.client.force_authenticate(user=self.admin)
-        data = {
-            "recipients": ["nonexistent@example.com"],
-            "message": "Test message"
-        }
-        response = self.client.post(self.notify_url, data, format="json")
+        response = self.client.post('/api/admin/notify/', {
+            'recipients': ['nonexistent@test.com'],
+            'message': 'Test message'
+        })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("detail", response.data)
+    
+    def test_admin_notify_success(self):
+        """Test successful email notification"""
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.post('/api/admin/notify/', {
+            'recipients': ['user@test.com'],
+            'message': '# Test\n\nThis is a test'
+        })
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertIn('job_id', response.data)
+        self.assertIn('recipients_count', response.data)
+        self.assertEqual(response.data['recipients_count'], 1)
+
+
+class AdminOverviewDataTestCase(TestCase):
+    """Test admin overview data correctness"""
+    
+    def setUp(self):
+        """Set up test data"""
+        self.client = APIClient()
+        self.admin = User.objects.create_user(
+            email='admin@test.com',
+            username='admin',
+            password='adminpass123',
+            is_staff=True
+        )
+        self.client.force_authenticate(user=self.admin)
+    
+    def test_admin_overview_returns_all_users(self):
+        """Test that overview returns all users"""
+        # Create additional users
+        User.objects.create_user(
+            email='user1@test.com',
+            username='user1',
+            password='pass123'
+        )
+        User.objects.create_user(
+            email='user2@test.com',
+            username='user2',
+            password='pass123'
+        )
+        
+        response = self.client.get('/api/admin/overview/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 3)  # admin + 2 users
+    
+    def test_admin_overview_includes_task_counts(self):
+        """Test that overview includes open_tasks and total_tasks"""
+        response = self.client.get('/api/admin/overview/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        if len(response.data) > 0:
+            user_data = response.data[0]
+            self.assertIn('open_tasks', user_data)
+            self.assertIn('total_tasks', user_data)
+            self.assertIn('email', user_data)
+            self.assertIn('username', user_data)
