@@ -1,4 +1,5 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from 'react';
+import { Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom';
 import {
   fetchTasks,
   createTask,
@@ -8,35 +9,26 @@ import {
   registerUser,
   fetchCurrentUser,
   clearAuthTokens,
-} from "./api";
+} from './api';
+import AdminPanel from './pages/AdminPanel';
+import './App.css';
 
 const STATUS_LABELS = {
-  TODO: "To Do",
-  DOING: "Doing",
-  DONE: "Done",
+  TODO: 'To Do',
+  DOING: 'Doing',
+  DONE: 'Done',
 };
 
 const PRIORITY_LABELS = {
-  LOW: "Low",
-  MEDIUM: "Medium",
-  HIGH: "High",
+  LOW: 'Low',
+  MEDIUM: 'Medium',
+  HIGH: 'High',
 };
 
 function App() {
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [taskFormError, setTaskFormError] = useState("");
-  const [editingTask, setEditingTask] = useState(null);
-  const [draggingId, setDraggingId] = useState(null);
-  const [dragOverStatus, setDragOverStatus] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
   const [user, setUser] = useState(null);
-  const [authMode, setAuthMode] = useState("login");
   const [authLoading, setAuthLoading] = useState(true);
-  const [authError, setAuthError] = useState("");
-  const [authFieldErrors, setAuthFieldErrors] = useState({});
+  const navigate = useNavigate();
 
   useEffect(() => {
     bootstrap();
@@ -46,61 +38,8 @@ function App() {
     try {
       const me = await fetchCurrentUser();
       setUser(me);
-      await loadTasks();
     } catch {
       clearAuthTokens();
-    } finally {
-      setAuthLoading(false);
-      setLoading(false);
-    }
-  }
-
-  async function loadTasks() {
-    try {
-      setLoading(true);
-      setError("");
-      const data = await fetchTasks();
-      setTasks(data);
-    } catch (err) {
-      setError(err.message || "Unable to load tasks.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleAuthSubmit(formData) {
-    try {
-      setAuthLoading(true);
-      setAuthError("");
-      setAuthFieldErrors({});
-      if (authMode === "register") {
-        await registerUser({
-          email: formData.email,
-          username: formData.username || formData.email,
-          password: formData.password,
-        });
-      }
-      await loginUser({ email: formData.email, password: formData.password });
-      const me = await fetchCurrentUser();
-      setUser(me);
-      await loadTasks();
-    } catch (err) {
-      const data = err.data || {};
-      const fieldErrs = {};
-      ["email", "username", "password"].forEach((field) => {
-        if (data[field]) {
-          fieldErrs[field] = Array.isArray(data[field])
-            ? data[field].join(" ")
-            : String(data[field]);
-        }
-      });
-      if (data.detail) {
-        fieldErrs.general = Array.isArray(data.detail)
-          ? data.detail.join(" ")
-          : String(data.detail);
-      }
-      setAuthFieldErrors(fieldErrs);
-      setAuthError(err.message || "Authentication failed.");
     } finally {
       setAuthLoading(false);
     }
@@ -109,17 +48,243 @@ function App() {
   function handleLogout() {
     clearAuthTokens();
     setUser(null);
-    setTasks([]);
+    navigate('/');
+  }
+
+  if (authLoading) {
+    return (
+      <div className="overlay">
+        <div className="spinner" aria-label="Loading" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthPage onAuthSuccess={setUser} />;
+  }
+
+  return (
+    <div className="app-root">
+      <header className="app-header">
+        <div>
+          <h1 className="app-title">Team Task Board</h1>
+          <nav className="app-nav">
+            <Link to="/">Dashboard</Link>
+            {user.is_staff && <Link to="/admin">Admin Panel</Link>}
+          </nav>
+        </div>
+        <div className="auth-meta">
+          <span className="auth-user">{user.email}</span>
+          {user.is_staff && <span className="badge badge-admin">Admin</span>}
+          <button className="ghost-button" onClick={handleLogout}>
+            Logout
+          </button>
+        </div>
+      </header>
+
+      <main className="app-main">
+        <Routes>
+          <Route path="/" element={<TaskBoard />} />
+          <Route
+            path="/admin"
+            element={
+              user.is_staff ? (
+                <AdminPanel />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </main>
+    </div>
+  );
+}
+
+function AuthPage({ onAuthSuccess }) {
+  const [authMode, setAuthMode] = useState('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!email.trim() || !password.trim()) {
+      setError('Email and password are required.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError('');
+      setFieldErrors({});
+
+      if (authMode === 'register') {
+        await registerUser({
+          email,
+          username: username || email,
+          password,
+        });
+      }
+
+      await loginUser({ email, password });
+      const me = await fetchCurrentUser();
+      onAuthSuccess(me);
+    } catch (err) {
+      const data = err.data || {};
+      const fieldErrs = {};
+      ['email', 'username', 'password'].forEach((field) => {
+        if (data[field]) {
+          fieldErrs[field] = Array.isArray(data[field])
+            ? data[field].join(' ')
+            : String(data[field]);
+        }
+      });
+      if (data.detail) {
+        fieldErrs.general = Array.isArray(data.detail)
+          ? data.detail.join(' ')
+          : String(data.detail);
+      }
+      setFieldErrors(fieldErrs);
+      setError(err.message || 'Authentication failed.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="app-root">
+      <header className="app-header">
+        <h1 className="app-title">Team Task Board</h1>
+        <p className="app-subtitle">Please sign in to continue</p>
+      </header>
+      <main className="app-main">
+        <section className="panel auth-panel">
+          <div className="auth-toggle">
+            <button
+              type="button"
+              className={authMode === 'login' ? 'tab active' : 'tab'}
+              onClick={() => setAuthMode('login')}
+            >
+              Login
+            </button>
+            <button
+              type="button"
+              className={authMode === 'register' ? 'tab active' : 'tab'}
+              onClick={() => setAuthMode('register')}
+            >
+              Register
+            </button>
+          </div>
+
+          <form className="task-form" onSubmit={handleSubmit}>
+            <div className="form-row">
+              <div className="form-field full-width">
+                <label>Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  placeholder="you@example.com"
+                />
+                {fieldErrors.email && (
+                  <div className="error-text">{fieldErrors.email}</div>
+                )}
+              </div>
+            </div>
+            {authMode === 'register' && (
+              <div className="form-row">
+                <div className="form-field full-width">
+                  <label>Username (optional)</label>
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Display name"
+                  />
+                  {fieldErrors.username && (
+                    <div className="error-text">{fieldErrors.username}</div>
+                  )}
+                </div>
+              </div>
+            )}
+            <div className="form-row">
+              <div className="form-field full-width">
+                <label>Password</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  placeholder="At least 8 characters"
+                />
+                {fieldErrors.password && (
+                  <div className="error-text">{fieldErrors.password}</div>
+                )}
+              </div>
+            </div>
+            {(error || fieldErrors.general) && (
+              <div className="error-box inline-error">
+                {error || fieldErrors.general}
+              </div>
+            )}
+            <div className="form-actions">
+              <button type="submit" disabled={loading || !email || !password}>
+                {loading
+                  ? 'Please wait...'
+                  : authMode === 'login'
+                  ? 'Login'
+                  : 'Register'}
+              </button>
+            </div>
+          </form>
+        </section>
+      </main>
+    </div>
+  );
+}
+
+function TaskBoard() {
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [taskFormError, setTaskFormError] = useState('');
+  const [editingTask, setEditingTask] = useState(null);
+  const [draggingId, setDraggingId] = useState(null);
+  const [dragOverStatus, setDragOverStatus] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  useEffect(() => {
+    loadTasks();
+  }, []);
+
+  async function loadTasks() {
+    try {
+      setLoading(true);
+      setError('');
+      const data = await fetchTasks();
+      setTasks(data);
+    } catch (err) {
+      setError(err.message || 'Unable to load tasks.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleCreateTask(formData) {
     try {
       setCreating(true);
-      setTaskFormError("");
+      setTaskFormError('');
       const newTask = await createTask(formData);
       setTasks((prev) => [newTask, ...prev]);
     } catch (err) {
-      setTaskFormError(err.message || "Unable to create task.");
+      setTaskFormError(err.message || 'Unable to create task.');
     } finally {
       setCreating(false);
     }
@@ -129,12 +294,12 @@ function App() {
     if (task.status === newStatus) return;
     const previousTasks = [...tasks];
     setTasks((prev) =>
-      prev.map((t) => (t.id === task.id ? { ...t, status: newStatus } : t)),
+      prev.map((t) => (t.id === task.id ? { ...t, status: newStatus } : t))
     );
     try {
       await updateTask(task.id, { status: newStatus });
     } catch (err) {
-      setError(err.message || "Unable to update task status.");
+      setError(err.message || 'Unable to update task status.');
       setTasks(previousTasks);
     }
   }
@@ -145,28 +310,30 @@ function App() {
     try {
       await deleteTask(taskId);
     } catch (err) {
-      setError(err.message || "Unable to delete task.");
+      setError(err.message || 'Unable to delete task.');
       setTasks(previousTasks);
     }
   }
 
   async function handleSaveEdit(id, payload) {
     const previousTasks = [...tasks];
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...payload } : t)));
+    setTasks((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, ...payload } : t))
+    );
     try {
       const updated = await updateTask(id, payload);
       setTasks((prev) => prev.map((t) => (t.id === id ? updated : t)));
       setEditingTask(null);
     } catch (err) {
-      setError(err.message || "Unable to update task.");
+      setError(err.message || 'Unable to update task.');
       setTasks(previousTasks);
     }
   }
 
   function handleDragStart(e, id) {
     setDraggingId(id);
-    e.dataTransfer.setData("text/plain", String(id));
-    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData('text/plain', String(id));
+    e.dataTransfer.effectAllowed = 'move';
   }
 
   function handleDragEnter(status) {
@@ -179,7 +346,7 @@ function App() {
 
   async function handleDrop(status, e) {
     e.preventDefault();
-    const idStr = draggingId ?? e.dataTransfer.getData("text/plain");
+    const idStr = draggingId ?? e.dataTransfer.getData('text/plain');
     const id = parseInt(idStr, 10);
     const task = tasks.find((t) => t.id === id);
     setDragOverStatus(null);
@@ -188,109 +355,72 @@ function App() {
     await handleStatusChange(task, status);
   }
 
-  const tasksTodo = tasks.filter((t) => t.status === "TODO");
-  const tasksDoing = tasks.filter((t) => t.status === "DOING");
-  const tasksDone = tasks.filter((t) => t.status === "DONE");
+  const tasksTodo = tasks.filter((t) => t.status === 'TODO');
+  const tasksDoing = tasks.filter((t) => t.status === 'DOING');
+  const tasksDone = tasks.filter((t) => t.status === 'DONE');
 
   return (
-    <div className="app-root">
-      {authLoading && (
-        <div className="overlay">
-          <div className="spinner" aria-label="Loading" />
+    <>
+      <section className="panel">
+        <div className="panel-head">
+          <h2 className="panel-title">Create a new task</h2>
+          <p className="panel-subtitle">Set the basics; you can refine later.</p>
         </div>
-      )}
-      <header className="app-header">
-        <div>
-          <h1 className="app-title">Team Task Board</h1>
-          <p className="app-subtitle">
-            A simple board for keeping your personal tasks organized.
-          </p>
-        </div>
-        {user && (
-          <div className="auth-meta">
-            <span className="auth-user">{user.email}</span>
-            <button className="ghost-button" onClick={handleLogout}>
-              Logout
-            </button>
+        <TaskForm
+          onSubmit={handleCreateTask}
+          loading={creating}
+          error={taskFormError}
+        />
+      </section>
+
+      <section className="board">
+        {loading && <div className="info-box">Loading tasks...</div>}
+        {error && <div className="error-box">{error}</div>}
+
+        {!loading && !error && (
+          <div className="board-columns">
+            <TaskColumn
+              title="To Do"
+              status="TODO"
+              tasks={tasksTodo}
+              onStatusChange={handleStatusChange}
+              onEdit={setEditingTask}
+              onRequestDelete={setDeleteTarget}
+              onDragStart={handleDragStart}
+              onDropStatus={handleDrop}
+              onDragEnterStatus={handleDragEnter}
+              onDragLeaveStatus={handleDragLeave}
+              dragOverStatus={dragOverStatus}
+            />
+            <TaskColumn
+              title="Doing"
+              status="DOING"
+              tasks={tasksDoing}
+              onStatusChange={handleStatusChange}
+              onEdit={setEditingTask}
+              onRequestDelete={setDeleteTarget}
+              onDragStart={handleDragStart}
+              onDropStatus={handleDrop}
+              onDragEnterStatus={handleDragEnter}
+              onDragLeaveStatus={handleDragLeave}
+              dragOverStatus={dragOverStatus}
+            />
+            <TaskColumn
+              title="Done"
+              status="DONE"
+              tasks={tasksDone}
+              onStatusChange={handleStatusChange}
+              onEdit={setEditingTask}
+              onRequestDelete={setDeleteTarget}
+              onDragStart={handleDragStart}
+              onDropStatus={handleDrop}
+              onDragEnterStatus={handleDragEnter}
+              onDragLeaveStatus={handleDragLeave}
+              dragOverStatus={dragOverStatus}
+            />
           </div>
         )}
-      </header>
-
-      <main className="app-main">
-        {!user ? (
-          <AuthForm
-            mode={authMode}
-            onModeChange={setAuthMode}
-            onSubmit={handleAuthSubmit}
-            loading={authLoading}
-            error={authError}
-            fieldErrors={authFieldErrors}
-          />
-        ) : (
-          <>
-            <section className="panel">
-              <div className="panel-head">
-                <h2 className="panel-title">Create a new task</h2>
-                <p className="panel-subtitle">Set the basics; you can refine later.</p>
-              </div>
-              <TaskForm
-                onSubmit={handleCreateTask}
-                loading={creating}
-                error={taskFormError}
-              />
-            </section>
-
-            <section className="board">
-              {loading && <div className="info-box">Loading tasks...</div>}
-              {error && <div className="error-box">{error}</div>}
-
-              {!loading && !error && (
-                <div className="board-columns">
-                  <TaskColumn
-                    title="To Do"
-                    status="TODO"
-                    tasks={tasksTodo}
-                    onStatusChange={handleStatusChange}
-                    onEdit={setEditingTask}
-                    onRequestDelete={setDeleteTarget}
-                    onDragStart={handleDragStart}
-                    onDropStatus={handleDrop}
-                    onDragEnterStatus={handleDragEnter}
-                    onDragLeaveStatus={handleDragLeave}
-                    dragOverStatus={dragOverStatus}
-                  />
-                  <TaskColumn
-                    title="Doing"
-                    status="DOING"
-                    tasks={tasksDoing}
-                    onStatusChange={handleStatusChange}
-                    onEdit={setEditingTask}
-                    onRequestDelete={setDeleteTarget}
-                    onDragStart={handleDragStart}
-                    onDropStatus={handleDrop}
-                    onDragEnterStatus={handleDragEnter}
-                    onDragLeaveStatus={handleDragLeave}
-                    dragOverStatus={dragOverStatus}
-                  />
-                  <TaskColumn
-                    title="Done"
-                    status="DONE"
-                    tasks={tasksDone}
-                    onStatusChange={handleStatusChange}
-                    onEdit={setEditingTask}
-                    onRequestDelete={setDeleteTarget}
-                    onDragStart={handleDragStart}
-                    onDropStatus={handleDrop}
-                    onDragEnterStatus={handleDragEnter}
-                    onDragLeaveStatus={handleDragLeave}
-                    dragOverStatus={dragOverStatus}
-                  />
-                </div>
-              )}
-            </section>
-          </>
-        )}
-      </main>
+      </section>
 
       {editingTask && (
         <EditTaskModal
@@ -309,115 +439,21 @@ function App() {
           }}
         />
       )}
-    </div>
-  );
-}
-
-function AuthForm({ mode, onModeChange, onSubmit, loading, error, fieldErrors }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [username, setUsername] = useState("");
-  const [localError, setLocalError] = useState("");
-
-  function handleSubmit(e) {
-    e.preventDefault();
-    if (!email.trim() || !password.trim()) {
-      setLocalError("Email and password are required.");
-      return;
-    }
-    setLocalError("");
-    onSubmit({ email, password, username });
-  }
-
-  const renderError = (msg) =>
-    msg ? <div className="error-text">{msg}</div> : null;
-
-  return (
-    <section className="panel auth-panel">
-      <div className="auth-toggle">
-        <button
-          type="button"
-          className={mode === "login" ? "tab active" : "tab"}
-          onClick={() => onModeChange("login")}
-        >
-          Login
-        </button>
-        <button
-          type="button"
-          className={mode === "register" ? "tab active" : "tab"}
-          onClick={() => onModeChange("register")}
-        >
-          Register
-        </button>
-      </div>
-
-      <form className="task-form" onSubmit={handleSubmit}>
-        <div className="form-row">
-          <div className="form-field full-width">
-            <label>Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              placeholder="you@example.com"
-            />
-            {renderError(fieldErrors?.email)}
-          </div>
-        </div>
-        {mode === "register" && (
-          <div className="form-row">
-            <div className="form-field full-width">
-              <label>Username (optional)</label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Used for display only"
-              />
-              {renderError(fieldErrors?.username)}
-            </div>
-          </div>
-        )}
-        <div className="form-row">
-          <div className="form-field full-width">
-            <label>Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="At least 8 characters"
-            />
-            {renderError(fieldErrors?.password)}
-          </div>
-        </div>
-        {(error || localError || fieldErrors?.general) && (
-          <div className="error-box inline-error">
-            {error || fieldErrors?.general || localError}
-          </div>
-        )}
-        <div className="form-actions">
-          <button type="submit" disabled={loading || !email || !password}>
-            {loading ? "Please wait..." : mode === "login" ? "Login" : "Register"}
-          </button>
-        </div>
-      </form>
-    </section>
+    </>
   );
 }
 
 function TaskForm({ onSubmit, loading, error }) {
-  const [title, setTitle] = useState("");
-  const [priority, setPriority] = useState("MEDIUM");
-  const [dueDate, setDueDate] = useState("");
-  const [description, setDescription] = useState("");
-  const [localError, setLocalError] = useState("");
+  const [title, setTitle] = useState('');
+  const [priority, setPriority] = useState('MEDIUM');
+  const [dueDate, setDueDate] = useState('');
+  const [description, setDescription] = useState('');
+  const [localError, setLocalError] = useState('');
 
   function handleSubmit(e) {
     e.preventDefault();
     if (!title.trim()) {
-      setLocalError("Title is required.");
+      setLocalError('Title is required.');
       return;
     }
 
@@ -425,15 +461,15 @@ function TaskForm({ onSubmit, loading, error }) {
       title: title.trim(),
       description: description.trim(),
       priority,
-      status: "TODO",
+      status: 'TODO',
       due_date: dueDate || null,
     });
 
-    setLocalError("");
-    setTitle("");
-    setDescription("");
-    setPriority("MEDIUM");
-    setDueDate("");
+    setLocalError('');
+    setTitle('');
+    setDescription('');
+    setPriority('MEDIUM');
+    setDueDate('');
   }
 
   return (
@@ -486,7 +522,7 @@ function TaskForm({ onSubmit, loading, error }) {
       )}
       <div className="form-actions">
         <button type="submit" disabled={loading || !title.trim()}>
-          {loading ? "Saving..." : "Add task"}
+          {loading ? 'Saving...' : 'Add task'}
         </button>
       </div>
     </form>
@@ -509,7 +545,7 @@ function TaskColumn({
   return (
     <div
       className={`column ${
-        dragOverStatus === status ? "column-dropping" : ""
+        dragOverStatus === status ? 'column-dropping' : ''
       }`}
       data-status={status}
       onDragOver={(e) => e.preventDefault()}
@@ -577,7 +613,7 @@ function TaskCard({
                 key={value}
                 type="button"
                 className={
-                  value === task.status ? "status-button active" : "status-button"
+                  value === task.status ? 'status-button active' : 'status-button'
                 }
                 data-status={value}
                 onClick={() => onStatusChange(task, value)}
@@ -593,7 +629,7 @@ function TaskCard({
               onClick={() => onEdit(task)}
               aria-label="Edit task"
             >
-              {"✎"}
+              {'✎'}
             </button>
             <button
               type="button"
@@ -601,7 +637,7 @@ function TaskCard({
               onClick={() => onRequestDelete(task)}
               aria-label="Delete task"
             >
-              {"🗑"}
+              {'🗑'}
             </button>
           </div>
         </div>
@@ -609,23 +645,24 @@ function TaskCard({
     </article>
   );
 }
+
 function EditTaskModal({ task, onClose, onSave }) {
-  const [title, setTitle] = useState(task.title || "");
-  const [priority, setPriority] = useState(task.priority || "MEDIUM");
-  const [status, setStatus] = useState(task.status || "TODO");
-  const [dueDate, setDueDate] = useState(task.due_date || "");
-  const [description, setDescription] = useState(task.description || "");
+  const [title, setTitle] = useState(task.title || '');
+  const [priority, setPriority] = useState(task.priority || 'MEDIUM');
+  const [status, setStatus] = useState(task.status || 'TODO');
+  const [dueDate, setDueDate] = useState(task.due_date || '');
+  const [description, setDescription] = useState(task.description || '');
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
 
   async function handleSave(e) {
     e.preventDefault();
     if (!title.trim()) {
-      setError("Title is required.");
+      setError('Title is required.');
       return;
     }
     setSaving(true);
-    setError("");
+    setError('');
     await onSave(task.id, {
       title: title.trim(),
       priority,
@@ -687,7 +724,7 @@ function EditTaskModal({ task, onClose, onSave }) {
               <input
                 type="date"
                 className="date-input"
-                value={dueDate || ""}
+                value={dueDate || ''}
                 onChange={(e) => setDueDate(e.target.value)}
               />
             </div>
@@ -711,7 +748,7 @@ function EditTaskModal({ task, onClose, onSave }) {
               Cancel
             </button>
             <button type="submit" disabled={saving}>
-              {saving ? "Saving..." : "Save changes"}
+              {saving ? 'Saving...' : 'Save changes'}
             </button>
           </div>
         </form>
@@ -732,8 +769,8 @@ function ConfirmDeleteModal({ task, onCancel, onConfirm }) {
         </div>
         <div className="modal-body">
           <p>
-            Are you sure you want to delete <strong>{task.title}</strong>?
-            This cannot be undone.
+            Are you sure you want to delete <strong>{task.title}</strong>? This
+            cannot be undone.
           </p>
         </div>
         <div className="form-actions modal-actions">

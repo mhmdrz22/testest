@@ -1,4 +1,4 @@
-﻿class APIError extends Error {
+class APIError extends Error {
   constructor(message, data) {
     super(message);
     this.name = "APIError";
@@ -9,22 +9,23 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api";
 const AUTH_URL = `${API_BASE_URL}/auth`;
 const TASKS_URL = `${API_BASE_URL}/tasks`;
+const ADMIN_URL = `${API_BASE_URL}/admin`;
 
 function getStoredTokens() {
   return {
-    access: localStorage.getItem("accessToken"),
-    refresh: localStorage.getItem("refreshToken"),
+    access: localStorage.getItem("access_token"),
+    refresh: localStorage.getItem("refresh_token"),
   };
 }
 
 function storeTokens({ access, refresh }) {
-  if (access) localStorage.setItem("accessToken", access);
-  if (refresh) localStorage.setItem("refreshToken", refresh);
+  if (access) localStorage.setItem("access_token", access);
+  if (refresh) localStorage.setItem("refresh_token", refresh);
 }
 
 export function clearAuthTokens() {
-  localStorage.removeItem("accessToken");
-  localStorage.removeItem("refreshToken");
+  localStorage.removeItem("access_token");
+  localStorage.removeItem("refresh_token");
 }
 
 async function handleResponse(response) {
@@ -129,5 +130,17 @@ export async function updateTask(id, data) {
 export async function deleteTask(id) {
   return authFetch(`${TASKS_URL}/${id}/`, {
     method: "DELETE",
+  });
+}
+
+// Admin endpoints (admin only)
+export async function fetchAdminOverview() {
+  return authFetch(`${ADMIN_URL}/overview/`);
+}
+
+export async function sendEmailNotification(data) {
+  return authFetch(`${ADMIN_URL}/notify/`, {
+    method: "POST",
+    body: JSON.stringify(data),
   });
 }
